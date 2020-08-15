@@ -86,8 +86,8 @@ func main() {
 				continue
 			}
 
-			if utf8.RuneCountInString(name) > 512 {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 512 символов")
+			if utf8.RuneCountInString(name) > 256 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 256 символов")
 				msg.ReplyToMessageID = update.Message.MessageID
 				bot.Send(msg)
 				continue
@@ -110,8 +110,8 @@ func main() {
 				continue
 			}
 
-			if utf8.RuneCountInString(bio) > 512 {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 512 символов")
+			if utf8.RuneCountInString(bio) > 256 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 256 символов")
 				msg.ReplyToMessageID = update.Message.MessageID
 				bot.Send(msg)
 				continue
