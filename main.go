@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/go-pg/pg/v10"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
@@ -21,7 +22,11 @@ func main() {
 		Password: "pass",
 	})
 	defer db.Close()
-	CreateSchema(db)
+	err := CreateSchema(db)
+	if err != nil {
+		fmt.Print(err.Error())
+		panic(err)
+	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
