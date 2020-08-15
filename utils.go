@@ -97,7 +97,6 @@ func ReceivePairHandler(db *pg.DB, bot *tgbotapi.BotAPI, update *tgbotapi.Update
 	pair, err := GetPair(db, update.Message.Chat.ID)
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нет подходящих пар. Попробуй чуть позже командой /next")
-		msg.ReplyToMessageID = update.Message.MessageID
 		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 		bot.Send(msg)
 		return
