@@ -22,10 +22,12 @@ type Pair struct {
 }
 
 func HandleMatch(bot *tgbotapi.BotAPI, fromId int64, toId int64) {
-	msg := tgbotapi.NewMessage(fromId, fmt.Sprintf("It's a match! Скорее пиши [этому котику]{tg://user?id=%d}.", toId))
+	msg := tgbotapi.NewMessage(fromId, fmt.Sprintf("It's a match! Скорее пиши [этому котику](tg://user?id=%d).", toId))
+	msg.ParseMode = tgbotapi.ModeMarkdown
 	bot.Send(msg)
 
-	msg = tgbotapi.NewMessage(toId, fmt.Sprintf("It's a match! Скорее пиши [этому котику]{tg://user?id=%d}.", fromId))
+	msg = tgbotapi.NewMessage(toId, fmt.Sprintf("It's a match! Скорее пиши [этому котику](tg://user?id=%d).", fromId))
+	msg.ParseMode = tgbotapi.ModeMarkdown
 	bot.Send(msg)
 }
 
@@ -36,7 +38,9 @@ func CreateSchema(db *pg.DB) error {
 	}
 
 	for _, model := range models {
-		err := db.Model(model).CreateTable(&orm.CreateTableOptions{})
+		err := db.Model(model).CreateTable(&orm.CreateTableOptions{
+			IfNotExists: true,
+		})
 		if err != nil {
 			return err
 		}
@@ -46,19 +50,28 @@ func CreateSchema(db *pg.DB) error {
 
 func UserRegistered(db *pg.DB, chatID int64) bool {
 	user := &User{ChatId: chatID}
-	err := db.Model(user).Select()
+	err := db.Model(user).Where("chat_id = ?::bigint", chatID).Select()
 
 	return err == nil
 }
 
 func InsertOrUpdate(db *pg.DB, user *User) {
-	db.Model(user).Update()
+	if ex, _ := db.Model(user).Where("chat_id = ?::bigint", user.ChatId).Exists(); ex {
+		db.Model(user).Where("chat_id = ?::bigint", user.ChatId).Update(user)
+	} else {
+		db.Model(user).Insert(user)
+	}
 }
 
 func GetPair(db *pg.DB, userId int64) (User, error) {
 	var user, currentUser User
-	db.Model(&currentUser).Where("chat_id == ?", userId).First()
-	err := db.Model(user).Where("chat_id NOT IN (SELECT b_id FROM pair WHERE a_id = ?) AND gender IN ?", userId, (*OrientationGenderToPossibleGender[user.Orientation])[user.Gender]).First()
+
+	err := db.Model(&currentUser).Where("chat_id = ?::bigint", userId).First()
+	if err != nil {
+		return User{}, err
+	}
+
+	err = db.Model(&user).Where("chat_id != ? AND chat_id NOT IN (SELECT bid FROM pairs WHERE aid = ?::bigint) AND gender = ANY(ARRAY[?]::bigint[])", userId, userId, pg.In((*OrientationGenderToPossibleGender[currentUser.Orientation])[currentUser.Gender])).First()
 	if err != nil {
 		return User{}, err
 	}
@@ -71,12 +84,30 @@ func InsertPair(db *pg.DB, from int64, to int64, loved bool) bool {
 		Bid:   to,
 		Match: loved,
 	}
-	db.Model(pair).Insert(pair)
+	db.Model(&pair).Insert(&pair)
 
 	if !loved {
 		return false
 	}
 
-	ans, _ := db.Model(Pair{}).Where("a_id == ? AND b_id == ? AND match", to, from).Exists()
+	ans, _ := db.Model(&Pair{}).Where("aid = ? AND bid = ? AND match", to, from).Exists()
 	return ans
+}
+func ReceivePairHandler(db *pg.DB, bot *tgbotapi.BotAPI, update *tgbotapi.Update, userState *map[int64]State, currentProposal *map[int64]int64) {
+	pair, err := GetPair(db, update.Message.Chat.ID)
+	if err != nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нет подходящих пар. Попробуй чуть позже командой /next")
+		msg.ReplyToMessageID = update.Message.MessageID
+		msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
+		bot.Send(msg)
+		return
+	}
+
+	msg := tgbotapi.NewPhotoShare(update.Message.Chat.ID, pair.PhotoId)
+	msg.ReplyMarkup = PairLoveKeyboard
+	msg.Caption = fmt.Sprintf("%s \n %s", pair.Name, pair.Bio)
+	bot.Send(msg)
+
+	(*userState)[update.Message.Chat.ID] = GetPairOpinion
+	(*currentProposal)[update.Message.Chat.ID] = pair.ChatId
 }

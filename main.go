@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/go-pg/pg/v10"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
@@ -58,6 +57,15 @@ func main() {
 		}
 
 		switch userState[update.Message.Chat.ID] {
+		case 0:
+			if UserRegistered(db, update.Message.Chat.ID) {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Что то сломалось! Напиши /next для получения новой пары")
+				userState[update.Message.Chat.ID] = ReceivePair
+				msg.ReplyToMessageID = update.Message.MessageID
+				bot.Send(msg)
+				continue
+			}
+			fallthrough
 		case Greet:
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Привет! Как тебя зовут? (Всю эту информацию ты сможешь поменять потом командой /change)")
 			bot.Send(msg)
@@ -147,22 +155,7 @@ func main() {
 			delete(userCache, update.Message.Chat.ID)
 			fallthrough // После завершения регистрации переходим к поиску пары
 		case ReceivePair:
-			pair, err := GetPair(db, update.Message.Chat.ID)
-			if err != nil {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нет подходящих пар. Попробуй чуть позже командой /next")
-				msg.ReplyToMessageID = update.Message.MessageID
-				msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-				bot.Send(msg)
-				continue
-			}
-
-			msg := tgbotapi.NewPhotoShare(update.Message.Chat.ID, pair.PhotoId)
-			msg.ReplyMarkup = PairLoveKeyboard
-			msg.Caption = fmt.Sprintf("%s \n %s", pair.Name, pair.Bio)
-			bot.Send(msg)
-
-			userState[update.Message.Chat.ID] = GetPairOpinion
-			currentProposal[update.Message.Chat.ID] = pair.ChatId
+			ReceivePairHandler(db, bot, &update, &userState, &currentProposal)
 
 		case GetPairOpinion:
 			opinion := update.Message.Text
@@ -191,6 +184,7 @@ func main() {
 			}
 
 			userState[update.Message.Chat.ID] = ReceivePair
+			ReceivePairHandler(db, bot, &update, &userState, &currentProposal)
 		}
 
 	}
