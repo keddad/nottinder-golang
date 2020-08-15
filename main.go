@@ -6,6 +6,7 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"os"
+	"unicode/utf8"
 )
 
 func main() {
@@ -84,6 +85,14 @@ func main() {
 				bot.Send(msg)
 				continue
 			}
+
+			if utf8.RuneCountInString(name) > 512 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 512 символов")
+				msg.ReplyToMessageID = update.Message.MessageID
+				bot.Send(msg)
+				continue
+			}
+
 			userCache[update.Message.Chat.ID] = &User{Name: name, ChatId: update.Message.Chat.ID}
 			userState[update.Message.Chat.ID] = GetBio
 
@@ -100,6 +109,14 @@ func main() {
 				bot.Send(msg)
 				continue
 			}
+
+			if utf8.RuneCountInString(bio) > 512 {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Очень большой текст! Уместись в 512 символов")
+				msg.ReplyToMessageID = update.Message.MessageID
+				bot.Send(msg)
+				continue
+			}
+
 			userCache[update.Message.Chat.ID].Bio = bio
 			userState[update.Message.Chat.ID] = GetPhoto
 
