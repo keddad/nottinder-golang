@@ -6,7 +6,7 @@ services:
     depends_on:
       - postgres
     environment:
-      - TOKEN=1162626752:AAHoQt0cavSWIeKKke7UvQT39DLifN71xNU
+      - TOKEN=secret
 
   postgres:
     restart: always
